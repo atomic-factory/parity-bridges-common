@@ -70,11 +70,6 @@ pub trait MessageBridge {
 	/// Maximal weight of single message delivery confirmation transaction on This chain.
 	fn weight_of_delivery_confirmation_transaction_on_this_chain() -> WeightOf<ThisChain<Self>>;
 
-	/// Weight of single message reward confirmation on the Bridged chain. This confirmation
-	/// is a part of delivery transaction, so this weight is added to the delivery
-	/// transaction weight.
-	fn weight_of_reward_confirmation_transaction_on_target_chain() -> WeightOf<BridgedChain<Self>>;
-
 	/// Convert weight of This chain to the fee (paid in Balance) of This chain.
 	fn this_weight_to_this_balance(weight: WeightOf<ThisChain<Self>>) -> BalanceOf<ThisChain<Self>>;
 
@@ -229,8 +224,6 @@ pub mod source {
 		// the fee (in Bridged tokens) of all transactions that are made on the Bridged chain
 		let delivery_fee = B::bridged_weight_to_bridged_balance(B::weight_of_delivery_transaction());
 		let dispatch_fee = B::bridged_weight_to_bridged_balance(payload.weight.into());
-		let reward_confirmation_fee =
-			B::bridged_weight_to_bridged_balance(B::weight_of_reward_confirmation_transaction_on_target_chain());
 
 		// the fee (in Bridged tokens) of all transactions that are made on This chain
 		let delivery_confirmation_fee = B::this_balance_to_bridged_balance(B::this_weight_to_this_balance(
@@ -240,7 +233,6 @@ pub mod source {
 		// minimal fee (in Bridged tokens) is a sum of all required fees
 		let minimal_fee = delivery_fee
 			.checked_add(&dispatch_fee)
-			.and_then(|fee| fee.checked_add(&reward_confirmation_fee))
 			.and_then(|fee| fee.checked_add(&delivery_confirmation_fee));
 
 		// before returning, add extra fee that is paid to the relayer (relayer interest)
@@ -560,7 +552,6 @@ mod tests {
 
 	const DELIVERY_TRANSACTION_WEIGHT: Weight = 100;
 	const DELIVERY_CONFIRMATION_TRANSACTION_WEIGHT: Weight = 100;
-	const REWARD_CONFIRMATION_TRANSACTION_WEIGHT: Weight = 100;
 	const THIS_CHAIN_WEIGHT_TO_BALANCE_RATE: Weight = 2;
 	const BRIDGED_CHAIN_WEIGHT_TO_BALANCE_RATE: Weight = 4;
 	const THIS_CHAIN_TO_BRIDGED_CHAIN_BALANCE_RATE: u32 = 6;
@@ -592,10 +583,6 @@ mod tests {
 
 		fn weight_of_delivery_confirmation_transaction_on_this_chain() -> Weight {
 			DELIVERY_CONFIRMATION_TRANSACTION_WEIGHT
-		}
-
-		fn weight_of_reward_confirmation_transaction_on_target_chain() -> Weight {
-			REWARD_CONFIRMATION_TRANSACTION_WEIGHT
 		}
 
 		fn this_weight_to_this_balance(weight: Weight) -> ThisChainBalance {
@@ -634,10 +621,6 @@ mod tests {
 		}
 
 		fn weight_of_delivery_confirmation_transaction_on_this_chain() -> Weight {
-			unreachable!()
-		}
-
-		fn weight_of_reward_confirmation_transaction_on_target_chain() -> Weight {
 			unreachable!()
 		}
 
@@ -799,7 +782,7 @@ mod tests {
 
 	#[test]
 	fn message_fee_is_checked_by_verifier() {
-		const EXPECTED_MINIMAL_FEE: u32 = 2640;
+		const EXPECTED_MINIMAL_FEE: u32 = 2200;
 
 		// payload of the This -> Bridged chain message
 		let payload = source::FromThisChainMessagePayload::<OnThisChainBridge> {
